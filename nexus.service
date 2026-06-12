@@ -1,0 +1,26 @@
+# systemd unit to auto-start the Nexus workbench on a Linux workstation boot.
+#
+# Install:
+#   sudo cp nexus.service /etc/systemd/system/nexus.service
+#   # edit User= and WorkingDirectory= below to match your setup
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nexus
+#   systemctl status nexus           # check it's running
+#
+[Unit]
+Description=Nexus OT AI Workbench (Streamlit + ChromaDB + Ollama)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGE_ME                     # the workstation login that owns the app
+WorkingDirectory=/opt/nexus        # where you put the project files
+ExecStart=/opt/nexus/run_local.sh
+# Uncomment to require a password on the office network:
+# Environment=APP_PASSWORD=changethis
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

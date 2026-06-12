@@ -1,0 +1,32 @@
+Copyright (c) 2026 Dhanush Krishna. All rights reserved.
+
+This software and its source code (the "Software") are the proprietary property
+of Dhanush Krishna (the "Author"). The Software is made publicly viewable for
+reference and demonstration purposes only.
+
+NO LICENSE IS GRANTED. Without the prior written permission of the Author, you
+may NOT:
+
+  - use the Software, in whole or in part, for any purpose;
+  - copy, reproduce, or republish the Software;
+  - modify, adapt, translate, or create derivative works of the Software;
+  - distribute, sublicense, sell, or otherwise transfer the Software; or
+  - use the Software to provide services to any third party.
+
+Viewing the Software in this repository does not grant any right, title, or
+interest in or to the Software, nor any patent, copyright, trademark, or other
+intellectual property right.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE
+LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+The Software relates to operational technology (OT) and industrial control
+systems. Nothing herein constitutes safety certification or engineering advice;
+the Software's output must be independently verified by qualified personnel
+before any operational use.
+
+For licensing inquiries, contact the Author.

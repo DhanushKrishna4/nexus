@@ -1,0 +1,35 @@
+[
+  {
+    "id": "pt101_failure",
+    "question": "What happens when pressure transmitter PT-101 fails?",
+    "use_rag": true,
+    "expect_tag": "PT-101",
+    "expect_keywords": ["steam", "valve", "overpressure"]
+  },
+  {
+    "id": "lt104_failure",
+    "question": "What is the failure behavior of level transmitter LT-104 on power loss?",
+    "use_rag": true,
+    "expect_tag": "LT-104",
+    "expect_keywords": ["zero", "pump"]
+  },
+  {
+    "id": "ft105_failure",
+    "question": "What happens if the impulse line on FT-105 gets clogged?",
+    "use_rag": true,
+    "expect_tag": "FT-105",
+    "expect_keywords": ["freeze", "override"]
+  },
+  {
+    "id": "hallucination_check",
+    "question": "What does our Site Z external penetration test from 2019 conclude about firewall rules?",
+    "use_rag": true,
+    "expect_refusal": true
+  },
+  {
+    "id": "general_knowledge",
+    "question": "In one sentence, what is the purpose of IEC 62443 zones and conduits?",
+    "use_rag": false,
+    "expect_keywords": ["segment", "zone"]
+  }
+]

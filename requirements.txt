@@ -1,0 +1,38 @@
+# Python dependencies for the Nexus workbench.
+#
+# These are version FLOORS (known-good minimums). For a fully reproducible
+# deploy, lock exact versions from a working server:
+#     pip freeze > requirements.lock
+# and install with `pip install -r requirements.lock`.
+#
+# boot.sh installs this same set on a fresh GPU box. Keep the two in sync.
+
+# --- Open WebUI (the ChatGPT-style frontend; also pulls fastapi/uvicorn) ----
+open-webui>=0.6
+
+# --- Models / inference client ---------------------------------------------
+ollama>=0.6
+
+# --- Vector store (client + server) ----------------------------------------
+chromadb>=1.5
+uvicorn[standard]>=0.30
+
+# --- HTTP client (router pipe + ChromaDB REST read path) -------------------
+httpx>=0.27
+
+# --- Data validation (Open WebUI pipe valves) ------------------------------
+pydantic>=2.7
+
+# --- Legacy Streamlit UI (app.py; >=1.43 for in-chat file attachments) -----
+streamlit>=1.43
+
+# --- Image handling --------------------------------------------------------
+pillow>=10.0
+
+# --- Document ingestion + generation ---------------------------------------
+pymupdf>=1.24        # PDF text extraction + page rendering for OCR / vision
+pdfplumber>=0.11     # geometric PDF-table parser (fast PDF->Excel fallback)
+python-docx>=1.1     # .docx read/write
+openpyxl>=3.1        # .xlsx read/write
+python-pptx>=0.6     # .pptx generation
+matplotlib>=3.8      # charts for the hybrid code-interpreter export path
