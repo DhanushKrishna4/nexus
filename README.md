@@ -1,219 +1,115 @@
-# Nexus AI — Local OT/Cybersecurity AI Workbench
+# Nexus — Private, self-hosted AI workbench
 
-A **fully private** AI assistant for an OT (Operational Technology) cybersecurity
-consultancy. Everything runs on your own GPU box — **no data ever leaves the
-machine**, which is a hard requirement for MNC clients who forbid cloud AI
-(ChatGPT/Claude/etc.).
+A **fully self-hosted** AI assistant for environments that can't send data to
+cloud AI (privacy/compliance, regulated industries, air-gapped networks).
+Everything runs on your own hardware on open-weight models — nothing is ever
+sent to a third party.
 
-It's built on **[Open WebUI](https://github.com/open-webui/open-webui)** (a
-polished, multi-user, ChatGPT-style frontend) backed by **Ollama** for model
-serving and **ChromaDB** for the knowledge base. A custom "Auto (Smart Routing)"
-pipe makes it feel like one smart model that does everything.
+Built on **[Open WebUI](https://github.com/open-webui/open-webui)** (a polished,
+multi-user, ChatGPT-style frontend) with **Ollama** serving the models and
+**ChromaDB** as the knowledge base. A custom **Auto (Smart Routing)** layer makes
+it feel like one capable model that quietly dispatches each request to the best
+specialist behind the scenes.
 
-> **Privacy by design:** telemetry/analytics are disabled, auth is on, and the
-> models are open-weight and self-hosted. Nothing is sent to any third party.
+## Features
 
----
-
-## What it does
-
-| Capability | How |
+| Capability | What it does |
 |---|---|
-| **Auto (Smart Routing)** | One model in the UI. It inspects each message and routes: simple → fast model, deep analysis → reasoning model, coding → coder model, images → vision model. |
-| **Deep analysis** | IEC 62443 / NIST SP 800-82 gap assessments, risk/threat analysis, reasoning over standards. Streams a collapsible "Thinking" view. |
-| **Blueprint Analyzer** | Reads instrument tags off a P&ID (vision model) and looks each one up in the failure-state knowledge base. |
-| **Document generation** | Word / Excel / PowerPoint export, built into the router. **Hybrid:** simple files use fast deterministic builders; complex ones (charts, pivots, styling) are written by the coding model and run sandboxed (Claude-style). |
-| **PDF → Excel** | Renders each PDF page and reads tables with the vision model for accuracy. |
-| **Document chat (RAG)** | Upload a doc and ask about it; full-context so the model sees the whole thing. |
+| **Smart routing** | Inspects each message and routes it: simple → fast model, deep analysis → a large reasoning model, coding → a coder model, images → a vision model. One assistant, no manual model-switching. |
+| **Live reasoning** | Streams the reasoning model's chain-of-thought into a collapsible "Thinking" view (ChatGPT/Claude-style), so the UI is never frozen during long thinks. |
+| **Document generation** | Word / Excel / PowerPoint export. **Hybrid:** simple files use fast deterministic builders; complex ones (charts, pivots, custom styling) are written by the coding model and executed in a **sandboxed** subprocess. |
+| **PDF → Excel** | Extracts tables by rendering each page and reading it with the vision model. |
+| **Document chat (RAG)** | Upload a document and ask about it, grounded in its full content. |
+| **Blueprint Analyzer** | Reads instrument tags off an engineering diagram (P&ID) with the vision model and cross-references a failure-mode knowledge base. |
 
-### The model suite (Qwen3.5 / 3.6, open-weight)
+## Stack
 
-| Model | Role |
+`Python` · `Open WebUI` · `Ollama` · `ChromaDB` · open-weight LLMs
+(Qwen3.5 / 3.6 family) · `bubblewrap` (sandboxing)
+
+### Model suite
+
+| Role | Model |
 |---|---|
-| `qwen3.5:35b` | Fast / daily driver (default) |
-| `qwen3.5:122b` | Deep reasoning (needs an H200/141GB-class GPU, ~78GB weights) |
-| `qwen3.6:27b` | Coding + hybrid export codegen |
-| `qwen3-vl:32b` | Vision: P&ID reading, table extraction |
-| `qwen3-embedding:4b` | Embeddings / semantic search |
-| `qwen3.5:2b` | Housekeeping (titles, etc.) |
+| Fast / daily chat (default) | `qwen3.5:35b` |
+| Deep reasoning | `qwen3.5:122b` |
+| Coding + export codegen | `qwen3.6:27b` |
+| Vision (diagrams, tables) | `qwen3-vl:32b` |
+| Embeddings / search | `qwen3-embedding:4b` |
+| Background tasks | `qwen3.5:2b` |
 
----
+Model names live in one place — [`models.env`](models.env) — read by both the
+shell scripts and the Python, so the whole stack stays in sync.
 
 ## Architecture
 
 ```
-   Your Mac                          GPU server (H200 141GB)
- ┌───────────┐  SSH tunnel :8080   ┌──────────────────────────────────┐
- │  Browser  │◄───────────────────►│  Open WebUI  (the ChatGPT-style UI)│
- └───────────┘                     │     │  └─ Auto-router pipe function  │
-                                   │     ├─ Ollama   (serves the models)  │
-                                   │     └─ ChromaDB (the knowledge base) │
-                                   │  All state on /workspace (persistent) │
-                                   └──────────────────────────────────────┘
+  Browser ──▶ Open WebUI ──▶ Auto (Smart Routing) pipe
+                  │              ├─ fast / reasoning / coding / vision models  (Ollama)
+                  │              ├─ sandboxed code-interpreter  (document export)
+                  │              └─ knowledge base               (ChromaDB)
 ```
 
-- **Your Mac runs nothing heavy** — just a browser and an SSH tunnel.
-- **Everything lives on `/workspace`** so models, DB, and config survive a pod
-  stop/start. (The container disk is ephemeral — nothing important goes there.)
+- **Auto (Smart Routing)** is a custom Open WebUI *pipe function* — it does the
+  routing, reasoning-stream handling, and document generation in one place
+  (`openwebui_autorouter_function.py`).
+- **Blueprint Analyzer** is a second pipe for engineering-diagram analysis.
 
-> ⚠️ **Persistence caveat (RunPod):** a *Volume* disk survives stop/start but is
-> destroyed on **terminate**. Back up before terminating, use a *network volume*
-> for durability, or — the real production home — an **on-prem workstation**.
-> Full details in [`PERSISTENCE.md`](PERSISTENCE.md) /
-> [`DEPLOY_WORKSTATION.md`](DEPLOY_WORKSTATION.md).
+## Running it
 
----
-
-## Quick start (fresh GPU box)
-
-Full step-by-step in [`DEPLOY_FRESH_H200.md`](DEPLOY_FRESH_H200.md). In short:
+Needs a Linux host with a GPU, plus Ollama and Python 3.11+.
 
 ```bash
-# 1. Upload the project + boot script
-scp -P <PORT> -i ~/.ssh/id_ed25519 ./* root@<IP>:/workspace/nexus/
-ssh root@<IP> -p <PORT> -i ~/.ssh/id_ed25519 \
-  "cp /workspace/nexus/boot.sh /workspace/boot.sh && bash /workspace/boot.sh"
-# boot.sh installs everything, pulls the model suite (~150GB, one time),
-# and starts Ollama + ChromaDB + Open WebUI in tmux.
+# 1. Install deps
+pip install -r requirements.txt
 
-# 2. Tunnel + create your admin account
-ssh -N -L 8080:localhost:8080 root@<IP> -p <PORT> -i ~/.ssh/id_ed25519
-#   -> open http://localhost:8080 and sign up (first account = admin)
+# 2. Bring up Ollama + ChromaDB + Open WebUI and pull the model suite
+bash boot.sh
 
-# 3. Restore the custom functions (Auto-router + Blueprint Analyzer)
-ssh root@<IP> -p <PORT> -i ~/.ssh/id_ed25519 \
-  "DATA_DIR=/workspace/open-webui python3 /workspace/nexus/bootstrap_functions.py"
-#   then restart Open WebUI so it loads them.
+# 3. Open the UI, create an admin account, then register the custom pipes
+python3 bootstrap_functions.py     # adds Auto Routing + Blueprint Analyzer
 ```
 
-After a pod stop/start, just re-run `bash /workspace/boot.sh` and re-open the
-tunnel — models are already on `/workspace`, so it's fast.
+`boot.sh` installs the stack, pulls the models, starts every service under a
+supervisor that auto-restarts anything that dies, and warms the default model.
+Model names, hosts, and other settings are environment-overridable — copy
+`.env.example` to `.env` to customize.
 
----
+> Deployment guides for specific targets: a cloud GPU box
+> ([`DEPLOY_FRESH_H200.md`](DEPLOY_FRESH_H200.md)) and an on-prem workstation
+> ([`DEPLOY_WORKSTATION.md`](DEPLOY_WORKSTATION.md)). Backup/restore and data
+> durability: [`PERSISTENCE.md`](PERSISTENCE.md).
 
-## Loading your real knowledge base
+## Security — executing model-written code
 
-The Blueprint Analyzer / RAG ships with a few **mock** entries. To load real
-failure-state manuals and standards:
+The hybrid export feature runs **model-generated Python** to build complex
+files, so it's sandboxed in layers (two always on, one opt-in):
 
-```bash
-# Put files in /workspace/input_docs on the server (PDF, Word, Excel, CSV, text,
-# or scanned images — scanned docs are OCR'd by the vision model), then:
-ssh root@<IP> -p <PORT> -i ~/.ssh/id_ed25519 \
-  "cd /workspace/nexus && python3 ingest.py --reset"
-```
+| Layer | Default | What it does |
+|---|---|---|
+| Static denylist | on | Rejects scripts that touch the network, shell, `subprocess`, or absolute paths before they run. |
+| Resource limits | on | Caps memory, CPU, and output size (kills runaway / OOM / fork-bomb scripts). |
+| Strict sandbox | opt-in | No network + filesystem confined to a temp dir, via `bubblewrap` (`unshare -n` fallback). |
 
-`--reset` clears the demo data. The ingester extracts text, finds instrument
-tags, and indexes each passage under the tag(s) it mentions.
-
----
-
-## Configuration
-
-All settings come from environment variables — copy `.env.example` to `.env` and
-adjust, or rely on the defaults (which match a local SSH tunnel). Model names,
-hosts, and the instrument-tag regex live in `config.py`; the Open WebUI runtime
-env is set in `boot.sh`.
-
-```bash
-cp .env.example .env
-```
-
----
-
-## The files
-
-| File | Purpose |
-|------|---------|
-| `boot.sh` | One-command install + start for a fresh/reset GPU box. |
-| `services.sh` | Shared service start + health-check definitions (sourced by `boot.sh` and `supervise.sh`). |
-| `supervise.sh` | Auto-restart watchdog — polls each service and restarts only the one that died. |
-| `models.env` | **Single source of truth** for model names (read by bash *and* Python). |
-| `openwebui_autorouter_function.py` | The **Auto (Smart Routing)** pipe: routing, `<think>` streaming, hybrid + sandboxed export, PDF→Excel. |
-| `openwebui_blueprint_function.py` | The **Blueprint Analyzer** pipe (P&ID → tags → manuals). |
-| `bootstrap_functions.py` | Re-inserts the two pipe functions into a fresh `webui.db`. |
-| `config.py` | Central settings (models, hosts, tag pattern); env-overridable. |
-| `ingest.py` | Loads real manuals into ChromaDB (run on the server). |
-| `build_database.py` | Seeds the demo knowledge base. |
-| `backup.sh` | Tarballs the irreplaceable data (DB, uploads, Chroma, code). |
-| `test_router.py` | Unit tests for routing + codegen-denylist heuristics. |
-| `rag_engine.py` / `chat_engine.py` | Vision OCR + retrieval / chat (legacy Streamlit path). |
-| `app.py` | Legacy Streamlit UI (pre-Open WebUI; kept for reference). |
-| `DEPLOY_FRESH_H200.md` | Fresh-pod rebuild checklist. |
-| `DEPLOY_WORKSTATION.md` | On-prem workstation deployment (production). |
-| `PERSISTENCE.md` | What survives what, storage tiers, backup/restore routine. |
+Tunable via the router's valves (`CODE_INTERPRETER`, `CODE_SANDBOX`,
+`CODE_MEM_MB`, `CODE_TIMEOUT`).
 
 ## Testing
 
-The routing decisions and the codegen safety denylist are pure functions with
-no GPU/network dependency:
+Routing decisions and the codegen denylist are pure functions — tested without a
+GPU:
 
 ```bash
 python3 test_router.py     # standalone PASS/FAIL summary
 pytest test_router.py      # if you have pytest
 ```
 
-These catch silent drift — a misroute sending work to the wrong model, or a
-denylist gap that would let unsafe generated code run.
+## Privacy by design
 
----
+Telemetry and analytics are disabled, authentication is on, and every model is
+open-weight and self-hosted. No request leaves the machine.
 
-## Security — code execution (the hybrid export path)
-
-The **hybrid export** feature runs **model-written Python** to build complex
-files (charts, pivots, custom styling). That code is executed on the server, so
-it's sandboxed in layers. Two are always on; one is opt-in.
-
-| Layer | Always on? | What it does |
-|---|---|---|
-| **Static denylist** | ✅ | Rejects scripts that touch the network, shell, `subprocess`, or absolute file paths before they run. |
-| **Resource limits** | ✅ | Caps memory, CPU seconds, and output size (kills runaway / fork-bomb / OOM scripts). |
-| **Minimal env + timeout** | ✅ | Clean temp working dir, no inherited secrets, hard wall-clock timeout. |
-| **Strict sandbox** | ⚙️ opt-in | **No network** + filesystem **confined to a temp dir**, via `bubblewrap` (falls back to `unshare -n` for network-only). |
-
-**Trust model:** the denylist is heuristic (evadable) — it backstops the
-subprocess limits, it doesn't replace them. For a **single-user, local, trusted**
-box, `"basic"` (denylist + rlimits) is reasonable. For **shared or client-facing**
-deployments, set strict mode.
-
-**Configuring it** (Admin → Functions → Auto (Smart Routing) → valves):
-
-| Valve | Default | Notes |
-|---|---|---|
-| `CODE_INTERPRETER` | `True` | Turn the whole codegen path off to disable code execution entirely. |
-| `CODE_SANDBOX` | `basic` | Set to `strict` for no-network + confined-filesystem (needs `bubblewrap`; `boot.sh` installs it). |
-| `CODE_MEM_MB` | `4096` | Per-run memory cap. |
-| `CODE_TIMEOUT` | `90` | Per-run wall-clock cap (seconds). |
-
-> Prefer `nsjail` or `firejail` over bubblewrap? Wire them into
-> `_sandbox_prefix()` in `openwebui_autorouter_function.py`.
-
----
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| Browser won't load `localhost:8080` | Is the SSH tunnel still running? Did `boot.sh` finish? |
-| UI looks frozen on a reply | The reasoning model is "thinking" — the router streams a collapsible **Thinking** section; give it a moment. |
-| "Auto (Smart Routing)" missing from model list | Run `bootstrap_functions.py`, then restart Open WebUI. |
-| Model not found | `ssh ... "ollama list"` — confirm the suite is pulled. |
-| Blueprint finds tags but no manuals | Expected until you load real manuals (`ingest.py --reset`). |
-| Everything seems wiped after restart | If it's on `/workspace` it isn't — re-run `bash /workspace/boot.sh`. |
-
----
-
-## Cost & availability note
-
-H200-class GPUs are billed by the hour and on-demand capacity isn't reserved —
-stopping a pod releases the GPU and it may not be free when you return. For
-regular use, a reserved/savings plan or an on-prem workstation is the durable
-answer. The 122B model in particular is workstation-class hardware.
-
----
-
-## License / status
+## License
 
 Copyright © 2026 Dhanush Krishna. **All rights reserved** — proprietary, source
-available for viewing only. See [`LICENSE`](LICENSE). This is the author's own
-work.
+available for viewing only. See [`LICENSE`](LICENSE).
